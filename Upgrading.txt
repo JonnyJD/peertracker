@@ -1,0 +1,10 @@
+PeerTracker - Simple, Efficient and Fast BitTorent Tracker
+-------------------------------------------------------------------------------------
+
+Since PeerTracker is so small, there is not much that goes into upgrading from 
+one release to the next. However, there could be small table changes in the 
+database schema for example and it might cause some problems.
+
+I'd suggest you run ./help.php that comes with PeerTracker after uploading the 
+new files to your server. It has some utility functions that will allow it to
+wipe the database and re-create the new structures.

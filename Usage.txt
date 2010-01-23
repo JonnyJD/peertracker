@@ -1,0 +1,15 @@
+Utilizing PeerTracker to Track Torrents
+--------------------------------------------------------------------------------------
+
+1. Follow the directions located in (Readme.txt) to install a copy of PeerTracker.
+
+2. Give out your newly created announce url (http://yourtracker.com/announce or 
+   http://yourtracker.com/announce.php) - either should work, however the former may 
+   not if your server does not support mod_rewrite via the .htaccess files; in such 
+   case use the latter.
+
+3. Your scrape URL works just the same as above. Using /scrape instead of /announce.
+
+3. Access your trackers statistics via (http://yourtracker.com/scrape?stats)
+   You can also specify the format you would like returned, default being html.
+   ?stats=xml returns xml and ?stats=json returns json.

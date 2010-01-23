@@ -1,0 +1,4 @@
+Options -Indexes
+RewriteEngine on  
+RewriteRule ^announce$ announce.php [NC,L]
+RewriteRule ^scrape$ scrape.php [NC,L]
