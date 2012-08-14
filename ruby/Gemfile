@@ -1,0 +1,7 @@
+source "http://rubygems.org"
+
+gem 'activerecord', :require => "active_record"
+gem 'sinatra'
+gem 'mysql2'
+gem "rspec"
+gem "json"
