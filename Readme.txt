@@ -1,6 +1,8 @@
 PeerTracker - Simple, Efficient and Fast BitTorent Tracker
 --------------------------------------------------------------------------------------
 
+This is a fork from http://code.google.com/p/peertracker/
+
 
 What Do You Need?
 --------------------------------------------------------------------------------------
