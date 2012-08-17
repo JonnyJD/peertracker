@@ -406,10 +406,11 @@ function setupMySQL()
 	// we need to locate tracker.mysql.php
 	// first, try the most obvious location.. which should be in the 
 	// same directory as the ./help.php file being ran
-	if (is_readable('./tracker.mysql.php'))
+	if (is_readable('./mysql/tracker.mysql.php'))
 	{
 		// require
-		require './tracker.mysql.php';
+		require './mysql/tracker.mysql.php';
+		require './mysql.config.php';
 	}
 	// unfortunately, it does not seem the file is located in the current
 	// directory, we will recurse the paths below and attempt to locate it
