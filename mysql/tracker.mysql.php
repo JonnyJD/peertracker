@@ -427,7 +427,7 @@ class peertracker
   }
 
   // tracker event handling
-  public static function event(as_code, country)
+  public static function event($as_code, $country)
   {
     // execute peer select
     $pState = self::$api->fetch_once(
