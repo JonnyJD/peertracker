@@ -410,7 +410,6 @@ function setupMySQL()
 	{
 		// require
 		require './mysql/tracker.mysql.php';
-		require './mysql.config.php';
 	}
 	// unfortunately, it does not seem the file is located in the current
 	// directory, we will recurse the paths below and attempt to locate it
