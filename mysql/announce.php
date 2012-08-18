@@ -97,7 +97,7 @@ peertracker::open();
 $_GET['info_hash'] = peertracker::$api->escape_sql($_GET['info_hash']);
 $_GET['peer_id']   = peertracker::$api->escape_sql($_GET['peer_id']);
 
-$json = file_get_contents("http://localhost:4567/as_info/{$_GET['ip']}.json");
+$json = file_get_contents("http://peertracker-as.local/as_info/{$_GET['ip']}.json");
 $parsed_json = json_decode($json);
 $as_code = $parsed_json->{'country'};
 $country = $parsed_json->{'as_code'};
