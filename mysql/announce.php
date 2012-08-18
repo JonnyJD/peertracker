@@ -1,5 +1,6 @@
 <?php
 
+
 // License Information /////////////////////////////////////////////////////////////////////////////
 
 /*
@@ -96,9 +97,13 @@ peertracker::open();
 $_GET['info_hash'] = peertracker::$api->escape_sql($_GET['info_hash']);
 $_GET['peer_id']   = peertracker::$api->escape_sql($_GET['peer_id']);
 
+$json = file_get_contents("http://localhost:4567/as_info/{$_GET['ip']}.json");
+$parsed_json = json_decode($json);
+$as_code = $parsed_json->{'country'};
+$country = $parsed_json->{'as_code'};
+
 // announce peers
 // need to pass as_code and country
-$json = file_get_contents("http://localhost:4567/as_info/123.123.123.123.json");
 peertracker::peers($as_code, $country);
 
 // track client

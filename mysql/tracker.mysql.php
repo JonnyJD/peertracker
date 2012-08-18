@@ -24,7 +24,8 @@
 // Configuration ///////////////////////////////////////////////////////////////////////////////////
 
 // tracker state
-require('../mysql.config.php');
+require '../mysql.config.php';
+
 // Tracker Operations //////////////////////////////////////////////////////////////////////////////
 
 // fatal error, stop execution
@@ -366,20 +367,21 @@ class peertracker
   }
 
   // insert new peer
-  public static function new_peer()
+  public static function new_peer($as_code, $country)
   {
     // insert peer
     self::$api->query(
       // insert into the peers table
       "INSERT IGNORE INTO `{$_SERVER['tracker']['db_prefix']}peers` " .
       // table columns
-      '(info_hash, peer_id, compact, ip, port, state, updated) ' .
+      '(info_hash, peer_id, compact, ip, port, state, as_code, country, updated)' .
       // 20-byte info_hash, 20-byte peer_id
       "VALUES ('{$_GET['info_hash']}', '{$_GET['peer_id']}', '" .
       // 6-byte compacted peer info
       self::$api->escape_sql(pack('Nn', ip2long($_GET['ip']), $_GET['port'])) . "', " .
       // dotted decimal string ip, integer port, integer state and unix timestamp updated
-      "'{$_GET['ip']}', {$_GET['port']}, {$_SERVER['tracker']['seeding']}, " . time() . '); '
+      "'{$_GET['ip']}', {$_GET['port']}, {$_SERVER['tracker']['seeding']}, " .
+      "'{$as_code}', '{$country}', " . time() . ');'
     ) OR tracker_error('failed to add new peer data');
     exit;
   }
@@ -454,7 +456,7 @@ class peertracker
       // client continuing download
     default:
       // new peer
-      if (!isset($pState[2])) self::new_peer();
+      if (!isset($pState[2])) self::new_peer($as_code, $country);
       // peer status
       elseif (
         // check that ip addresses match
