@@ -397,7 +397,7 @@ class peertracker
       "SET compact='" . self::$api->escape_sql(pack('Nn', ip2long($_GET['ip']), $_GET['port'])) .
       // dotted decimal string ip, integer port
       "', ip='{$_GET['ip']}', port={$_GET['port']}, " .
-      "'as_code='{$as_code}', country={$country}, " .
+      "as_code='{$as_code}', country='{$country}', " .
       // integer state and unix timestamp updated
       "state={$_SERVER['tracker']['seeding']}, updated=" . time() .
       // that matches the given info_hash and peer_id
