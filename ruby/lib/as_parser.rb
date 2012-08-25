@@ -1,20 +1,20 @@
 class ASParser
-  def parse_response(response)
-    [parse_as(response),parse_country(response)]
+  def parse_response(raw_code, raw_country)
+    [parse_as(raw_code),parse_country(raw_country)]
   end
 
-  def parse_as(response)
+  def parse_as(raw_code)
     begin
-      response.scan(/Provider:<\/b><p>(\w*)/)[0][0]
+      raw_code.scan(/origin:\s*([A-Z0-9]*)\s/i)[0][0]
     rescue => e
       puts "Could not parse AS"
       nil
     end
   end
 
-  def parse_country(response)
+  def parse_country(raw_country)
     begin
-      response.scan(/Location:<\/b><p>(.*)<p>/)[0][0].split(",").last.strip
+      raw_country.scan(/country:\s*([A-Z0-9]*)\s/i)[0][0]
     rescue => e
       puts "Could not parse Country"
       nil

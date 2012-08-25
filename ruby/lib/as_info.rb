@@ -3,13 +3,15 @@ require File.join(File.dirname(__FILE__), "../config/database.rb")
 require File.join(File.dirname(__FILE__), "./model/peer.rb")
 require File.join(File.dirname(__FILE__), "./url_creator.rb")
 require File.join(File.dirname(__FILE__), "./http_request.rb")
+require File.join(File.dirname(__FILE__), "./whois_request.rb")
 require File.join(File.dirname(__FILE__), "./as_parser.rb")
 
 module Peertracker
   class ASInfo
     def set_as_info_for_ip(ip_address)
-      request = HTTPRequest.new(URLCreator.new("ip.searchwww.com", ip_address).create_url)
-      ASParser.new.parse_response(request.perform_request)
+      raw_code = WhoisRequest.new.get_as_info(ip_address)
+      raw_country = WhoisRequest.new.get_country_info(ip_address)
+      ASParser.new.parse_response(raw_code, raw_country)
     end
 
     class << self
