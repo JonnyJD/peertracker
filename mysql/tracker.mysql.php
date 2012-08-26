@@ -397,7 +397,7 @@ class peertracker
       "SET compact='" . self::$api->escape_sql(pack('Nn', ip2long($_GET['ip']), $_GET['port'])) .
       // dotted decimal string ip, integer port
       "', ip='{$_GET['ip']}', port={$_GET['port']}, " .
-      "as_code='{$as_code}', country='{$country}', " .
+      //"as_code='{$as_code}', country='{$country}', " .
       // integer state and unix timestamp updated
       "state={$_SERVER['tracker']['seeding']}, updated=" . time() .
       // that matches the given info_hash and peer_id
@@ -493,16 +493,17 @@ class peertracker
     // from peers table matching info_hash
     "FROM `{$_SERVER['tracker']['db_prefix']}peers` WHERE info_hash='{$_GET['info_hash']}'" .
     // less peers than requested, so return them all
-    ($total[0] <= $_GET['numwant'] ? ';' : 
+//    ($total[0] <= $_GET['numwant'] ? ';' : 
     // if the total peers count is low, use SQL RAND
-    ($total[0] <= $_SERVER['tracker']['random_limit'] ?
+    //($total[0] <= $_SERVER['tracker']['random_limit'] ?
    // " ORDER BY RAND() LIMIT {$_GET['numwant']};" : 
-    " ORDER BY as_code='{$as_code}' DESC, country='{$country}' DESC LIMIT {$_GET['numwant']};" : 
+    " ORDER BY as_code='{$as_code}' DESC, country='{$country}' DESC LIMIT 4;"
     // use a more efficient but less accurate RAND
-    " LIMIT {$_GET['numwant']} OFFSET " . 
-    mt_rand(0, ($total[0]-$_GET['numwant']))
-  )
-);
+    //" LIMIT {$_GET['numwant']} OFFSET " . 
+    //mt_rand(0, ($total[0]-$_GET['numwant']))
+  //)
+//)
+;
 
     // begin response
     $response = 'd8:intervali' . $_SERVER['tracker']['announce_interval'] . 
