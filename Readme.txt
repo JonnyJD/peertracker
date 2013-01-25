@@ -1,4 +1,4 @@
-PeerTracker - Simple, Efficient and Fast BitTorent Tracker
+PeerTracker - Simple, Efficient and Fast BitTorent Tracker | Version 0.1.1
 --------------------------------------------------------------------------------------
 
 

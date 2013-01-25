@@ -4,7 +4,7 @@
 
 /* 
  * PeerTracker - OpenSource BitTorrent Tracker
- * Revision - $Id: tracker.mysql.php 148 2009-11-16 23:18:28Z trigunflame $
+ * Revision - $Id: tracker.mysql.php 154 2009-11-18 07:39:10Z trigunflame $
  * Copyright (C) 2009 PeerTracker Team
  *
  * PeerTracker is free software: you can redistribute it and/or modify
@@ -49,6 +49,13 @@ $_SERVER['tracker'] = array(
 	// advanced database options
 	'db_prefix'         => 'pt_',         /* name prefixes for the PeerTracker tables */
 	'db_persist'        => false,         /* use persistent connections if available. */
+	
+	// note: most likely there is no need to set this unless your mysql database happens 
+	// to be located on another server and/or you have a lot of incoming connections/s. 
+	// in other words, don't change it unless you know for sure that it is absolutely 
+	// necessary to do so. your http server and mysql server must be tuned correctly, 
+	// otherwise you will not get the performance benefits that you seek from using 
+	// persistent connections.
 );
 
 // Tracker Operations //////////////////////////////////////////////////////////////////////////////
@@ -56,7 +63,8 @@ $_SERVER['tracker'] = array(
 // fatal error, stop execution
 function tracker_error($error) 
 {
-	exit('d14:failure reason' . strlen($error) . ":{$error}e");
+	echo 'd14:failure reason' . strlen($error) . ":{$error}e";
+	exit;
 }
 
 // MySQL Database API //////////////////////////////////////////////////////////////////////////////
@@ -102,19 +110,14 @@ class peertracker_mysql
 	{
 		mysql_close($this->db);
 	}
-	
-	// make sql safe
-	public function escape_sql($sql)
-	{
-		return mysql_real_escape_string($sql, $this->db);
-	}
-	
+
 	// query database
 	public function query($sql)
 	{
+		// note: not checking for error
 		return mysql_query($sql, $this->db);
 	}
-	
+
 	// return one row
 	public function fetch_once($sql)
 	{
@@ -134,8 +137,6 @@ class peertracker_mysql
 	{
 		// fetch peers
 		$query = mysql_query($sql, $this->db) OR tracker_error('failed to select compact peers');
-		
-		// build response
 		while($peer = mysql_fetch_row($query)) $peers .= $peer[0];
 
 		// cleanup
@@ -147,8 +148,6 @@ class peertracker_mysql
 	{
 		// fetch peers
 		$query = mysql_query($sql, $this->db) OR tracker_error('failed to select peers');
-		
-		// dotted decimal string ip, 20-byte peer_id, integer port
 		while($peer = mysql_fetch_row($query)) $response .= 'd2:ip' . strlen($peer[1]) . ":{$peer[1]}" . "7:peer id20:{$peer[0]}4:porti{$peer[2]}ee";
 
 		// cleanup
@@ -160,8 +159,6 @@ class peertracker_mysql
 	{
 		// fetch peers
 		$query = mysql_query($sql, $this->db) OR tracker_error('failed to select peers');
-		
-		// dotted decimal string ip, integer port
 		while($peer = mysql_fetch_row($query)) $response .= 'd2:ip' . strlen($peer[0]) . ":{$peer[0]}4:porti{$peer[1]}ee";
 
 		// cleanup
@@ -171,10 +168,8 @@ class peertracker_mysql
 	// full scrape of all torrents
 	public function full_scrape($sql, &$response)
 	{
-		// fetch scrape
+		// fetch statistics
 		$query = mysql_query($sql) OR tracker_error('unable to perform a full scrape');
-		
-		// 20-byte info_hash, integer complete, integer downloaded, integer incomplete
 		while ($scrape = mysql_fetch_row($query)) $response .= "20:{$scrape[0]}d8:completei{$scrape[1]}e10:downloadedi0e10:incompletei{$scrape[2]}ee";
 
 		// cleanup
@@ -220,15 +215,10 @@ class peertracker_mysqli
 		$this->db->close();
 	}
 
-	// make sql safe
-	public function escape_sql($sql)
-	{
-		return $this->db->real_escape_string($sql);
-	}
-	
 	// query database
 	public function query($sql)
 	{
+		// note: not checking for error
 		return $this->db->query($sql);
 	}
 
@@ -251,8 +241,6 @@ class peertracker_mysqli
 	{
 		// fetch peers
 		$query = $this->db->query($sql) OR tracker_error('failed to select compact peers');
-		
-		// build response
 		while($peer = $query->fetch_row()) $peers .= $peer[0];
 
 		// cleanup
@@ -264,8 +252,6 @@ class peertracker_mysqli
 	{
 		// fetch peers
 		$query = $this->db->query($sql) OR tracker_error('failed to select peers');
-		
-		// dotted decimal string ip, 20-byte peer_id, integer port
 		while($peer = $query->fetch_row()) $response .= 'd2:ip' . strlen($peer[1]) . ":{$peer[1]}" . "7:peer id20:{$peer[0]}4:porti{$peer[2]}ee";
 
 		// cleanup
@@ -277,8 +263,6 @@ class peertracker_mysqli
 	{
 		// fetch peers
 		$query = $this->db->query($sql) OR tracker_error('failed to select peers');
-		
-		// dotted decimal string ip, integer port
 		while($peer = $query->fetch_row()) $response .= 'd2:ip' . strlen($peer[0]) . ":{$peer[0]}4:porti{$peer[1]}ee";
 
 		// cleanup
@@ -288,10 +272,8 @@ class peertracker_mysqli
 	// full scrape of all torrents
 	public function full_scrape($sql, &$response)
 	{
-		// fetch scrape
+		// scrape
 		$query = $this->db->query($sql) OR tracker_error('unable to perform a full scrape');
-		
-		// 20-byte info_hash, integer complete, integer downloaded, integer incomplete
 		while ($scrape = $query->fetch_row()) $response .= "20:{$scrape[0]}d8:completei{$scrape[1]}e10:downloadedi0e10:incompletei{$scrape[2]}ee";
 
 		// cleanup
@@ -352,11 +334,8 @@ class peertracker
 			// unix timestamp
 			$time = time();
 
-			// fetch last cleanup time
-			$last = self::$api->fetch_once(
-				// select last cleanup from tasks
-				"SELECT value FROM `{$_SERVER['tracker']['db_prefix']}tasks` WHERE name='prune'"
-			);
+			// attempt to locate the last time we ran cleanup
+			$last = self::$api->fetch_once("SELECT value FROM `{$_SERVER['tracker']['db_prefix']}tasks` WHERE name='prune'");
 
 			// first clean cycle?
 			if (($last[0] + 0) == 0) 
@@ -403,11 +382,12 @@ class peertracker
 			// 20-byte info_hash, 20-byte peer_id
 			"VALUES ('{$_GET['info_hash']}', '{$_GET['peer_id']}', '" .
 			// 6-byte compacted peer info
-			self::$api->escape_sql(pack('Nn', ip2long($_GET['ip']), $_GET['port'])) . "', " .
-			// dotted decimal string ip, integer port, integer state and unix timestamp updated
-			"'{$_GET['ip']}', {$_GET['port']}, {$_SERVER['tracker']['seeding']}, " . time() . '); '
+			addslashes(pack('Nn', ip2long($_GET['ip']), $_GET['port'])) . "', " .
+			// dotted decimal string ip, integer port
+			"'{$_GET['ip']}', {$_GET['port']}, " .
+			// integer state and unix timestamp updated
+			$_SERVER['tracker']['seeding'] . ', ' . time() . ')'
 		) OR tracker_error('failed to add new peer data');
-		exit;
 	}
 
 	// full peer update
@@ -418,13 +398,13 @@ class peertracker
 			// update the peers table
 			"UPDATE `{$_SERVER['tracker']['db_prefix']}peers` " . 
 			// set the 6-byte compacted peer info
-			"SET compact='" . self::$api->escape_sql(pack('Nn', ip2long($_GET['ip']), $_GET['port'])) .
+			"SET compact='" . addslashes(pack('Nn', ip2long($_GET['ip']), $_GET['port'])) .
 			// dotted decimal string ip, integer port
 			"', ip='{$_GET['ip']}', port={$_GET['port']}, " .
 			// integer state and unix timestamp updated
-			"state={$_SERVER['tracker']['seeding']}, updated=" . time() .
+			'state=' . $_SERVER['tracker']['seeding'] . ', updated=' . time() . ' ' .
 			// that matches the given info_hash and peer_id
-			" WHERE info_hash='{$_GET['info_hash']}' AND peer_id='{$_GET['peer_id']}'"
+			"WHERE info_hash='{$_GET['info_hash']}' AND peer_id='{$_GET['peer_id']}'"
 		) OR tracker_error('failed to update peer data');
 	}
 	
@@ -433,10 +413,12 @@ class peertracker
 	{
 		// update peer
 		self::$api->query(
+			// update the peers table
+			"UPDATE `{$_SERVER['tracker']['db_prefix']}peers` " . 
 			// set updated to the current unix timestamp
-			"UPDATE `{$_SERVER['tracker']['db_prefix']}peers` SET updated=" . time() .
+			'SET updated=' . time() . ' ' .
 			// that matches the given info_hash and peer_id
-			" WHERE info_hash='{$_GET['info_hash']}' AND peer_id='{$_GET['peer_id']}'"
+			"WHERE info_hash='{$_GET['info_hash']}' AND peer_id='{$_GET['peer_id']}'"
 		) OR tracker_error('failed to update peers last access');
 	}
 
@@ -458,9 +440,9 @@ class peertracker
 		// execute peer select
 		$pState = self::$api->fetch_once(
 			// select a peer from the peers table
-			"SELECT ip, port, state FROM `{$_SERVER['tracker']['db_prefix']}peers` " .
+			"SELECT ip, port, state FROM `{$_SERVER['tracker']['db_prefix']}peers` WHERE " .
 			// that matches the given info_hash and peer_id
-			"WHERE info_hash='{$_GET['info_hash']}' AND peer_id='{$_GET['peer_id']}'"
+			"info_hash='{$_GET['info_hash']}' AND peer_id='{$_GET['peer_id']}'"
 		);
 
 		// process tracker event
@@ -504,6 +486,9 @@ class peertracker
 			"SELECT COUNT(*) FROM `{$_SERVER['tracker']['db_prefix']}peers` WHERE info_hash='{$_GET['info_hash']}'"
 		) OR tracker_error('failed to select peer count');
 
+		// announce response
+		$response = 'd8:intervali' . $_SERVER['tracker']['announce_interval'] . 'e12:min intervali' . $_SERVER['tracker']['min_interval'] . 'e5:peers';
+
 		// select
 		$sql = 'SELECT ' . 
 			// 6-byte compacted peer info
@@ -525,22 +510,15 @@ class peertracker
 					mt_rand(0, ($total[0]-$_GET['numwant']))
 				)
 			);
-			
-		// begin response
-		$response = 'd8:intervali' . $_SERVER['tracker']['announce_interval'] . 
-		            'e12:min intervali' . $_SERVER['tracker']['min_interval'] . 
-		            'e5:peers';
 
 		// compact announce
 		if ($_GET['compact'])
 		{
-			// peers list
+			// fetch peers
 			$peers = '';
-			
-			// build response
 			self::$api->peers_compact($sql, $peers);
 
-			// 6-byte compacted peer info
+			// encoded string of peers in compact form
 			$response .= strlen($peers) . ':' . $peers;
 		}
 		// dictionary announce
@@ -558,7 +536,7 @@ class peertracker
 			$response .= 'e';
 		}
 
-		// send response
+		// respond asap
 		echo $response . 'e';
 
 		// cleanup
@@ -581,30 +559,29 @@ class peertracker
 				// from peers
 				"FROM `{$_SERVER['tracker']['db_prefix']}peers` " . 
 				// that match info_hash
-				"WHERE info_hash='" . self::$api->escape_sql($_GET['info_hash']) . "'"
-			) OR tracker_error('unable to scrape the requested torrent');
+				"WHERE info_hash='" . addslashes($_GET['info_hash']) . "'"
+			);
 
-			// 20-byte info_hash, integer complete, integer downloaded, integer incomplete
-			$response .= "20:{$_GET['info_hash']}d8:completei" . ($scrape[0]+0) . 
-			             'e10:downloadedi0e10:incompletei' . ($scrape[1]+0) . 'ee';
+			// build response
+			$response .= "20:{$_GET['info_hash']}d8:completei" . ($scrape[0]+0) . 'e10:downloadedi0e10:incompletei' . ($scrape[1]+0) . 'ee';
 		}
 		// full scrape
 		else
 		{
-			// scrape
+			// select
 			$sql = 'SELECT ' .
-				// info_hash, total seeders and leechers
+				// total seeders and leechers
 				'info_hash, SUM(state=1), SUM(state=0) ' .
 				// from peers
 				"FROM `{$_SERVER['tracker']['db_prefix']}peers` " .
 				// grouped by info_hash
 				'GROUP BY info_hash';
 
-			// build response
+			// scrape
 			self::$api->full_scrape($sql, $response);
 		}
 
-		// send response
+		// respond asap
 		echo $response . 'ee';
 	}
 
@@ -628,7 +605,7 @@ class peertracker
 			case 'xml':
 				header('Content-Type: text/xml');
 				echo '<?xml version="1.0" encoding="ISO-8859-1"?>' .
-				     '<tracker version="$Id: tracker.mysql.php 148 2009-11-16 23:18:28Z trigunflame $">' .
+				     '<tracker version="$Id: tracker.mysql.php 154 2009-11-18 07:39:10Z trigunflame $">' .
 				     '<peers>' . number_format($stats[0] + $stats[1]) . '</peers>' .
 				     '<seeders>' . number_format($stats[0]) . '</seeders>' .
 				     '<leechers>' . number_format($stats[1]) . '</leechers>' .
@@ -638,7 +615,7 @@ class peertracker
 			// json
 			case 'json':
 				header('Content-Type: text/javascript');
-				echo '{"tracker":{"version":"$Id: tracker.mysql.php 148 2009-11-16 23:18:28Z trigunflame $",' .
+				echo '{"tracker":{"version":"$Id: tracker.mysql.php 154 2009-11-18 07:39:10Z trigunflame $",' .
 				     '"peers": "' . number_format($stats[0] + $stats[1]) . '",' .
 					 '"seeders":"' . number_format($stats[0]) . '",' .
 					 '"leechers":"' . number_format($stats[1]) . '",' .
@@ -648,7 +625,7 @@ class peertracker
 			// standard
 			default:
 				echo '<!doctype html><html><head><meta http-equiv="content-type" content="text/html; charset=UTF-8">' .
-				     '<title>PeerTracker: $Id: tracker.mysql.php 148 2009-11-16 23:18:28Z trigunflame $</title>' .
+				     '<title>PeerTracker: $Id: tracker.mysql.php 154 2009-11-18 07:39:10Z trigunflame $</title>' .
 					 '<body><pre>' . number_format($stats[0] + $stats[1]) . 
 				     ' peers (' . number_format($stats[0]) . ' seeders + ' . number_format($stats[1]) .
 				     ' leechers) in ' . number_format($stats[2]) . ' torrents</pre></body></html>';

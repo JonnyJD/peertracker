@@ -4,7 +4,7 @@
 
 /* 
  * PeerTracker - OpenSource BitTorrent Tracker
- * Revision - $Id: tracker.sqlite3.php 148 2009-11-16 23:18:28Z trigunflame $
+ * Revision - $Id: tracker.sqlite3.php 135 2009-10-31 23:25:07Z trigunflame $
  * Copyright (C) 2009 PeerTracker Team
  *
  * PeerTracker is free software: you can redistribute it and/or modify
@@ -49,12 +49,13 @@ $_SERVER['tracker'] = array(
 // fatal error, stop execution
 function tracker_error($error) 
 {
-	exit('d14:failure reason' . strlen($error) . ":{$error}e");
+	echo 'd14:failure reason' . strlen($error) . ":{$error}e";
+	exit;
 }
 
 // SQLite3 Tracker Database ////////////////////////////////////////////////////////////////////////
 
-// peertracker core
+// PeerTracker Core
 class peertracker
 {
 	// database connection
@@ -87,8 +88,8 @@ class peertracker
 				// create peers table
 				'CREATE TABLE IF NOT EXISTS peers ' .
 					'(info_hash BLOB, peer_id BLOB, compact BLOB, ip TEXT, ' .
-					'port INTEGER DEFAULT 0, state INTEGER DEFAULT 0, ' .
-					'updated INTEGER DEFAULT 0); ' .
+					'port INTEGER DEFAULT 0, updated INTEGER DEFAULT 0, ' .
+					'state INTEGER DEFAULT 0); ' .
 				// create tasks table
 				'CREATE TABLE IF NOT EXISTS tasks' .
 					'(name TEXT, value INTEGER DEFAULT 0); ' .
@@ -127,11 +128,8 @@ class peertracker
 			// unix timestamp
 			$time = time();
 			
-			// fetch last cleanup time
-			if (($last = self::$db->querySingle(
-				// select last cleanup from tasks
-				"SELECT value FROM tasks WHERE name='prune';"
-			) + 0) == 0) 
+			// attempt to locate the last time we ran cleanup
+			if (($last = self::$db->querySingle("SELECT value FROM tasks WHERE name='prune';") + 0) == 0) 
 			{
 				self::$db->exec(
 					// begin query transaction
@@ -171,11 +169,15 @@ class peertracker
 		// build peer query
 		$peer = self::$db->prepare(
 			// insert into the peers table
-			'INSERT OR IGNORE INTO peers (info_hash, peer_id, compact, ip, port, state, updated) ' .
+			'INSERT OR IGNORE INTO peers ' .
+			// table columns
+			'(info_hash, peer_id, compact, ip, port, updated, state) ' .
 			// 20-byte info_hash, 20-byte peer_id, 6-byte compacted peer info
 			'VALUES (:info_hash, :peer_id, :compact, ' .
-			// dotted decimal string ip, integer port, integer state and unix timestamp updated
-			"'{$_GET['ip']}', {$_GET['port']}, {$_SERVER['tracker']['seeding']}, " . time() . '); '
+			// dotted decimal string ip, integer port
+			"'{$_GET['ip']}', {$_GET['port']}, " .
+			// unix timestamp updated and integer state
+			time() . ', ' . $_SERVER['tracker']['seeding'] . '); '
 		);
 
 		// assign binary data
@@ -192,12 +194,14 @@ class peertracker
 	{
 		// build peer query
 		$peer = self::$db->prepare(
-			// update the 6-byte compacted peer info, dotted decimal string ip, integer port
-			"UPDATE peers SET compact=:compact, ip='{$_GET['ip']}', port={$_GET['port']}, " .
-			// integer state and unix timestamp updated
-			"state={$_SERVER['tracker']['seeding']}, updated=" . time() .
+			// update the peers table
+			'UPDATE peers ' . 
+			// set the 6-byte compacted peer info, dotted decimal string ip, integer port
+			"SET compact=:compact, ip='{$_GET['ip']}', port={$_GET['port']}, " .
+			// unix timestamp updated and integer state
+			'updated=' . time() . ', state=' . $_SERVER['tracker']['seeding'] . ' ' .
 			// that matches the given info_hash and peer_id
-			" WHERE info_hash=:info_hash AND peer_id=:peer_id;"
+			"WHERE info_hash=:info_hash AND peer_id=:peer_id;"
 		);
 
 		// assign binary data
@@ -214,10 +218,12 @@ class peertracker
 	{
 		// build peer query
 		$peer = self::$db->prepare(
+			// update the peers table
+			'UPDATE peers ' . 
 			// set updated to the current unix timestamp
-			'UPDATE peers SET updated=' . time() .
+			'SET updated=' . time() . ' ' .
 			// that matches the given info_hash and peer_id
-			' WHERE info_hash=:info_hash AND peer_id=:peer_id;'
+			'WHERE info_hash=:info_hash AND peer_id=:peer_id;'
 		);
 
 		// assign binary data
@@ -258,8 +264,8 @@ class peertracker
 		$peer->bindValue(':info_hash', $_GET['info_hash'], SQLITE3_BLOB);
 		$peer->bindValue(':peer_id', $_GET['peer_id'], SQLITE3_BLOB);
 
-		// execute peer select & cleanup 
-		$success = $peer->execute() OR tracker_error('failed to select peer data');
+		// execute peer select & cleanup
+		if (!$success = $peer->execute()) tracker_error('failed to select peer data');
 		$pState = $success->fetchArray(SQLITE3_NUM);
 		$success->finalize(); 
 		$peer->close();
@@ -309,11 +315,14 @@ class peertracker
 		$peer->bindValue(':info_hash', $_GET['info_hash'], SQLITE3_BLOB);
 
 		// execute peer row count & cleanup
-		$success = $peer->execute() OR tracker_error('failed to select peer count');
+		if (!$success = $peer->execute()) tracker_error('failed to select peer count');
 		$total = $success->fetchArray(SQLITE3_NUM);
 		$success->finalize(); 
 		$peer->close();
-		
+
+		// announce response
+		$response = 'd8:intervali' . $_SERVER['tracker']['announce_interval'] . 'e12:min intervali' . $_SERVER['tracker']['min_interval'] . 'e5:peers';
+
 		// prepare query
 		$peer = self::$db->prepare(
 			// select
@@ -339,27 +348,20 @@ class peertracker
 			)
 		);
 		
-		// begin response
-		$response = 'd8:intervali' . $_SERVER['tracker']['announce_interval'] . 
-		            'e12:min intervali' . $_SERVER['tracker']['min_interval'] . 
-		            'e5:peers';
-					
 		// assign binary data
 		$peer->bindValue(':info_hash', $_GET['info_hash'], SQLITE3_BLOB);
 
 		// execute peer selection
-		$success = $peer->execute() OR tracker_error('failed to select peers');
+		if (!$success = $peer->execute()) tracker_error('failed to select peers');
 
 		// compact announce
 		if ($_GET['compact'])
 		{
-			// peers list
+			// fetch peers
 			$peers = '';
-			
-			// build response
 			while ($p = $success->fetchArray(SQLITE3_NUM)) $peers .= $p[0];
-			
-			// 6-byte compacted peer info
+
+			// encoded string of peers in compact form
 			$response .= strlen($peers) . ':' . $peers;
 		}
 		// dictionary announce
@@ -371,13 +373,13 @@ class peertracker
 			// include peer_id
 			if (!$_GET['no_peer_id'])
 			{
-				// dotted decimal string ip, 20-byte peer_id, integer port
+				// fetch peers
 				while ($p = $success->fetchArray(SQLITE3_NUM)) $response .= 'd2:ip' . strlen($p[1]) . ":{$p[1]}" . "7:peer id20:{$p[0]}4:porti{$p[2]}ee";
 			}
 			// omit peer_id
 			else
 			{
-				// dotted decimal string ip, integer port
+				// fetch peers
 				while ($p = $success->fetchArray(SQLITE3_NUM)) $response .= 'd2:ip' . strlen($p[0]) . ":{$p[0]}4:porti{$p[1]}ee";
 			}
 
@@ -385,7 +387,7 @@ class peertracker
 			$response .= 'e';
 		}
 
-		// send response
+		// respond asap
 		echo $response . 'e';
 
 		// cleanup
@@ -397,7 +399,7 @@ class peertracker
 	// scrape info_hash
 	public function scrape()
 	{
-		// begin response
+		// scrape response
 		$response = 'd5:filesd';
 
 		// scrape info_hash
@@ -414,13 +416,12 @@ class peertracker
 			// assign binary data
 			$query->bindValue(':info_hash', $_GET['info_hash'], SQLITE3_BLOB);
 
+			// execute peer selection
+			if (!$success = $query->execute()) tracker_error('unable to scrape the requested torrent');
+
 			// scrape
-			$success = $query->execute() OR tracker_error('unable to scrape the requested torrent');
 			$scrape = $success->fetchArray(SQLITE3_NUM);
-			
-			// 20-byte info_hash, integer complete, integer downloaded, integer incomplete
-			$response .= "20:{$_GET['info_hash']}d8:completei" . ($scrape[0]+0) . 
-			             'e10:downloadedi0e10:incompletei' . ($scrape[1]+0) . 'ee';
+			$response .= "20:{$_GET['info_hash']}d8:completei" . ($scrape[0]+0) . 'e10:downloadedi0e10:incompletei' . ($scrape[1]+0) . 'ee';
 
 			// cleanup
 			$success->finalize(); 
@@ -431,20 +432,18 @@ class peertracker
 		{
 			// scrape
 			$query = self::$db->query(
-				// select info_hash, total seeders and leechers
+				// total seeders and leechers
 				'SELECT info_hash, SUM(state=1), SUM(state=0) ' .
-				// from peers grouped by info_hash
+				// for each info_hash being tracked
 				'FROM peers GROUP BY info_hash;'
 			) OR tracker_error('unable to perform a full scrape');
-			
-			// 20-byte info_hash, integer complete, integer downloaded, integer incomplete
 			while ($scrape = $query->fetchArray(SQLITE3_NUM)) $response .= "20:{$scrape[0]}d8:completei{$scrape[1]}e10:downloadedi0e10:incompletei{$scrape[2]}ee";
-			
+
 			// cleanup
 			$query->finalize();
 		}
 
-		// send response
+		// respond asap
 		echo $response . 'ee';
 	}
 
@@ -455,8 +454,10 @@ class peertracker
 		$query = self::$db->query(
 			// select seeders and leechers
 			'SELECT SUM(state=1), SUM(state=0), ' .
-			// unique torrents from peers
-			'COUNT(DISTINCT info_hash) FROM peers;'
+			// unique torrents
+			'COUNT(DISTINCT info_hash) ' .
+			// from peers
+			'FROM peers;'
 		) OR tracker_error('failed to retrieve tracker statistics');
 		$stats = $query->fetchArray(SQLITE3_NUM);
 
@@ -467,7 +468,7 @@ class peertracker
 			case 'xml':
 				header('Content-Type: text/xml');
 				echo '<?xml version="1.0" encoding="ISO-8859-1"?>' .
-				     '<tracker version="$Id: tracker.sqlite3.php 148 2009-11-16 23:18:28Z trigunflame $">' .
+				     '<tracker version="$Id: tracker.sqlite3.php 135 2009-10-31 23:25:07Z trigunflame $">' .
 				     '<peers>' . number_format($stats[0] + $stats[1]) . '</peers>' .
 				     '<seeders>' . number_format($stats[0]) . '</seeders>' .
 				     '<leechers>' . number_format($stats[1]) . '</leechers>' .
@@ -477,7 +478,7 @@ class peertracker
 			// json
 			case 'json':
 				header('Content-Type: text/javascript');
-				echo '{"tracker":{"version":"$Id: tracker.sqlite3.php 148 2009-11-16 23:18:28Z trigunflame $",' .
+				echo '{"tracker":{"version":"$Id: tracker.sqlite3.php 135 2009-10-31 23:25:07Z trigunflame $",' .
 				     '"peers": "' . number_format($stats[0] + $stats[1]) . '",' .
 				     '"seeders":"' . number_format($stats[0]) . '",' .
 				     '"leechers":"' . number_format($stats[1]) . '",' .
@@ -487,7 +488,7 @@ class peertracker
 			// standard
 			default:
 				echo '<!doctype html><html><head><meta http-equiv="content-type" content="text/html; charset=UTF-8">' .
-				     '<title>PeerTracker: $Id: tracker.sqlite3.php 148 2009-11-16 23:18:28Z trigunflame $</title>' .
+				     '<title>PeerTracker: $Id: tracker.sqlite3.php 135 2009-10-31 23:25:07Z trigunflame $</title>' .
 				     '<body><pre>' . number_format($stats[0] + $stats[1]) . 
 				     ' peers (' . number_format($stats[0]) . ' seeders + ' . number_format($stats[1]) .
 				     ' leechers) in ' . number_format($stats[2]) . ' torrents</pre></body></html>';

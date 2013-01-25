@@ -2,21 +2,21 @@
 
 // License Information /////////////////////////////////////////////////////////////////////////////
 
-/*
+/* 
  * PeerTracker - OpenSource BitTorrent Tracker
- * Revision - $Id: announce.php 161 2010-01-20 17:49:50Z trigunflame $
+ * Revision - $Id: announce.php 124 2009-10-28 19:54:09Z trigunflame $
  * Copyright (C) 2009 PeerTracker Team
  *
  * PeerTracker is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation, either version 3 of the License, or
  * (at your option) any later version.
- *
+ * 
  * PeerTracker is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- *
+ * 
  * You should have received a copy of the GNU General Public License
  * along with PeerTracker.  If not, see <http://www.gnu.org/licenses/>.
  */
@@ -36,13 +36,6 @@ require './tracker.mysql.php';
 
 // Verify Request //////////////////////////////////////////////////////////////////////////////////
 
-// strip auto-escaped data
-if (get_magic_quotes_gpc())
-{
-	$_GET['info_hash'] = stripslashes($_GET['info_hash']);
-	$_GET['peer_id'] = stripslashes($_GET['peer_id']);
-}
-
 // 20-bytes - info_hash
 // sha-1 hash of torrent metainfo
 if (!isset($_GET['info_hash']) || strlen($_GET['info_hash']) != 20) exit;
@@ -53,11 +46,12 @@ if (!isset($_GET['peer_id']) || strlen($_GET['peer_id']) != 20) exit;
 
 // integer - port
 // port the client is accepting connections from
-if (!(isset($_GET['port']) && is_numeric($_GET['port']))) tracker_error('client listening port is invalid');
+if (!(isset($_GET['port']) && is_numeric($_GET['port']))) tracker_error('client listening port is invalid');  
 
 // integer - left
 // number of bytes left for the peer to download
-if (isset($_GET['left']) && is_numeric($_GET['left'])) $_SERVER['tracker']['seeding'] = ($_GET['left'] > 0 ? 0 : 1); else tracker_error('client data left field is invalid');
+if (isset($_GET['left']) && is_numeric($_GET['left'])) $_SERVER['tracker']['seeding'] = ($_GET['left'] > 0 ? 0 : 1);
+else tracker_error('client data left field is invalid'); 
 
 // integer boolean - compact - optional
 // send a compact peer response
@@ -89,23 +83,23 @@ else $_GET['numwant'] += 0;
 
 // Handle Request //////////////////////////////////////////////////////////////////////////////////
 
-// open database
-peertracker::open();
+// strip info_hash & peer_id
+if (get_magic_quotes_gpc()) 
+{ 
+	stripslashes($_GET['info_hash']); 
+	stripslashes($_GET['peer_id']); 
+}
 
 // make info_hash & peer_id SQL friendly
-$_GET['info_hash'] = peertracker::$api->escape_sql($_GET['info_hash']);
-$_GET['peer_id']   = peertracker::$api->escape_sql($_GET['peer_id']);
+$_GET['info_hash'] = addslashes($_GET['info_hash']);
+$_GET['peer_id']   = addslashes($_GET['peer_id']);
 
-// announce peers
+
+// announce
+peertracker::open();
 peertracker::peers();
-
-// track client
 peertracker::event();
-
-// garbage collection
 peertracker::clean();
-
-// close database
 peertracker::close();
 
 ?>
