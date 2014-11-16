@@ -74,12 +74,21 @@ if (isset($_GET['ip']) && $_SERVER['tracker']['external_ip'])
 {
 	// dotted decimal only
 	$_GET['ip'] = trim($_GET['ip'],'::ffff:');
-	if (!ip2long($_GET['ip'])) tracker_error('invalid ip, dotted decimal only');
+	if (!ip2long($_GET['ip'])) {
+		unset($_GET['ip']);
+		//tracker_error('invalid ip, dotted decimal only');
+	}
 }
-// set ip to connected client
-elseif (isset($_SERVER['REMOTE_ADDR'])) $_GET['ip'] = trim($_SERVER['REMOTE_ADDR'],'::ffff:');
-// cannot locate suitable ip, must abort
-else tracker_error('could not locate clients ip');
+if (!isset($_GET['ip']))
+{
+	// set ip to connected client
+	if (isset($_SERVER['REMOTE_ADDR'])) {
+		$_GET['ip'] = trim($_SERVER['REMOTE_ADDR'],'::ffff:');
+	} else {
+		// cannot locate suitable ip, must abort
+		tracker_error('could not locate clients ip');
+	}
+}
 
 // integer - numwant - optional
 // number of peers that the client has requested
